@@ -1,4 +1,4 @@
-name: Build Redmi K30 5G Speed (picasso) (MIUI A12)
+name: Build Redmi K305G Speed (picasso MIUI A12)
 
 on:
   workflow_call:
