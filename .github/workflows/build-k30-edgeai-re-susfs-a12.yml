@@ -123,16 +123,24 @@ jobs:
 
       - name: 🚀 Build Process
         run: |
-          # 设置 GCC 工具链路径
+          # 设置工具链路径
           export PATH=$PATH:$GITHUB_WORKSPACE/aarch64-linux-android-4.9/bin
           export PATH=$PATH:$GITHUB_WORKSPACE/arm-linux-androideabi-4.9/bin
 
-          # 设置交叉编译器环境变量（只用 GCC）
+          # 设置交叉编译器环境变量
           export CROSS_COMPILE=aarch64-linux-android-
           export CROSS_COMPILE_ARM32=arm-linux-androideabi-
 
-          # 编译流程
-          make O=out ${{ env.DEFCONFIG_NAME }}
+          # 主内核用 clang
+          export CC=clang
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+          export LD=ld.lld
+          export LLVM=1
+          export LLVM_IAS=1
+
+          # 编译流程：先复制 picasso.config，再生成最终配置
+          cp arch/arm64/configs/vendor/xiaomi/picasso.config out/.config
+          make O=out olddefconfig
           make O=out -j$(nproc)
 
       - name: 🔩 Pack Process
