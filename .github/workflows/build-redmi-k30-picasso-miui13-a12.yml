@@ -88,27 +88,44 @@ jobs:
       - name: ⚙️ Get necessary tools
         uses: ./.github/workflows/build-ready
 
-      - name: 🧹 Force clean kernel source
+      - name: 🧹 Force clean kernel source (Fix mrproper)
         run: |
           echo "========================================="
           echo "Cleaning kernel source directory..."
           echo "========================================="
+          
+          # 进入内核源码根目录（不是 out 目录）
           cd $GITHUB_WORKSPACE/device_kernel
+          
+          echo "Current directory: $(pwd)"
+          echo "Files before clean:"
+          ls -la
           
           # 删除编译输出目录
           rm -rf out
           
-          # 执行深度清理，恢复源码至初始状态
-          make mrproper 2>/dev/null || echo "make mrproper not needed"
+          # 删除所有可能残留的编译文件
+          rm -f .config .config.old .version
+          rm -f Module.symvers System.map
           
-          # 删除所有临时文件和备份文件
-          find . -type f \( -name "*.o" -o -name "*.cmd" -o -name "*.d" -o -name "*.tmp" -o -name "*.swp" -o -name "*~" \) -delete 2>/dev/null || true
-          find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+          # 删除所有 .o .ko .cmd 文件
+          find . -type f \( -name "*.o" -o -name "*.ko" -o -name "*.cmd" -o -name "*.mod.c" \) -delete 2>/dev/null || true
           
-          # 删除可能残留的 .config 文件
-          rm -f .config .config.old 2>/dev/null || true
+          # 删除所有临时文件
+          find . -type f -name ".*.cmd" -delete 2>/dev/null || true
+          find . -type f -name "*.tmp" -delete 2>/dev/null || true
           
+          # 删除 include/generated 目录
+          rm -rf include/generated 2>/dev/null || true
+          
+          # 删除 scripts/basic 目录
+          rm -rf scripts/basic 2>/dev/null || true
+          
+          echo "========================================="
           echo "✅ Kernel source cleaned."
+          echo "Files after clean:"
+          ls -la
+          echo "========================================="
 
       - name: 🔧 Fix compat_uptr_t and header issues
         run: |
