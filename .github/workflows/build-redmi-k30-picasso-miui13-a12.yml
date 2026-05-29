@@ -35,8 +35,8 @@ env:
   KERNELSU_SOURCE : "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/refs/heads/main/kernel/setup.sh"
   KERNELSU_BRANCH : "v4.1.0"
 
-  KERNELSU_AUTO_GET : "true" # if u want easy setting kernelsu, u can true.
-  KERNELSU_AUTO_FORK : "resukisu" # magic, rsuntk, next, resukisu and sukisu
+  KERNELSU_AUTO_GET : "true"
+  KERNELSU_AUTO_FORK : "resukisu"
 
   SUSFS_ENABLE : true
   SUSFS_FIXED : true
@@ -52,53 +52,51 @@ env:
 
   ROM_TEXT : "rom_android"
 
-  # Other env
-  PYTHON_VERSION: "3" # Only 2(Ubuntu 22.04 and Ubuntu 20.04) or 3(Any OS Versions).
+  PYTHON_VERSION: "3"
 
-  PACK_METHOD: "Anykernel3" # Anykernel3 need SOURCE and BRANCH, MKBOOTIMG needn't it.
-  PACK_KMODULES: "false" # if u want pack kernel modules (.ko) into Anykernel3.
+  PACK_METHOD: "Anykernel3"
+  PACK_KMODULES: "false"
 
-  KERNELSU_METHOD: "shell" # shell, manual and only.
+  KERNELSU_METHOD: "shell"
 
-  PATCHES_SOURCE: "Kiz9178/NonGKI_Kernel_Build_2nd" # [your_name]/[your_patch] -> gooder123/NonGKI_Patcher
-  PATCHES_BRANCH: "sample" # [your_branch] -> main
+  PATCHES_SOURCE: "Kiz9178/NonGKI_Kernel_Build_2nd"
+  PATCHES_BRANCH: "sample"
 
-  SUSFS_FOLDER_FIXED: "Patches/Patch" # Fill in your patch prefix directory here. Leave it blank if there isn't one. -> your_folder
-  SUSFS_PATCH_FIXED: "susfs_patch_to_4.19" # Fill in your patches here. If there are multiple patches, please separate them with a comma. Leave it blank if there isn't one. -> patch1,patch2
+  SUSFS_FOLDER_FIXED: "Patches/Patch"
+  SUSFS_PATCH_FIXED: "susfs_patch_to_4.19"
 
-  REKERNEL_ENABLE: "false" # if u need Re:Kernel.
+  REKERNEL_ENABLE: "false"
 
-  HOOK_METHOD: "syscall" # Manual hook method -> syscall.
-  HOOK_OLDER: "false" # contain backport older patch and syscall older patch.
+  HOOK_METHOD: "syscall"
+  HOOK_OLDER: "false"
 
-  KERNEL_PATCH: "false" # If your kernel version is <= 4.9, you have the option of enabling the patch to patch the kernel_write and kernel_read functions.
+  KERNEL_PATCH: "false"
 
-  KPM_ENABLE: "true" # Anyone devices.
-  KPM_INLINE: "false" # Only use it for SukiSU-Ultra.
-  KPM_KPATCH_NEXT: "false" # If u want hook KPatch-Next in build step.
-  KPM_PATCH_SOURCE: "https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.13.0/patch_linux" # If u want to use KPM Inline,so you need set patch exec file source -> raw.githubusercontent.com/Test/Test/patch .
+  KPM_ENABLE: "true"
+  KPM_INLINE: "false"
+  KPM_KPATCH_NEXT: "false"
+  KPM_PATCH_SOURCE: "https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.13.0/patch_linux"
 
-  BASEBAND_GUARD_ENABLE: "false" #if u want prevent unauthorized writes to critical partitions/device nodes.
-  BASEBAND_GUARD_BOOT: "false" #if u want to protect boot partition.
+  BASEBAND_GUARD_ENABLE: "false"
+  BASEBAND_GUARD_BOOT: "false"
 
-  HIDE_STUFF: "false" # hide some of the features
+  HIDE_STUFF: "false"
 
-  GENERATE_DTB: "false" # if u kernel need DTB , but cannot auto generate it. (Only Anykernel3).
-  GENERATE_CHIP: "qcom" # only supported for qcom and mediatek.
+  GENERATE_DTB: "false"
+  GENERATE_CHIP: "qcom"
 
-  BUILD_DEBUGGER: "false" # Output build errors.
-  SKIP_PATCH: "false" # Ignore errors found in Patch Debugger.
+  BUILD_DEBUGGER: "false"
+  SKIP_PATCH: "false"
 
-  BUILD_OTHER_CONFIG: "false" # Merge config files.
+  BUILD_OTHER_CONFIG: "false"
   MERGE_CONFIG_FILES: "vendor/debugfs.config,vendor/lahaina_QGKI.config"
 
-  FREE_MORE_SPACE: "false" # if u want get more space, enabled it.
+  FREE_MORE_SPACE: "false"
 
 jobs:
   build-kernel:
     name: redmi K30 picasso (MIUI 13 A12)
-    runs-on: ubuntu-latest # u can changed to ubuntu 22.04, and need container set ubuntu-latest
-    # container: archlinux/archlinux:latest # if u need use arch linux -> archlinux/archlinux:latest or ubuntu 20.04 -> ubuntu:focal
+    runs-on: ubuntu-latest
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
@@ -114,6 +112,42 @@ jobs:
       - name: ⚙️ Get neccssary tools
         uses: ./.github/workflows/build-ready
 
+      - name: 🔧 Fix compat_uptr_t and header issues
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+          
+          # 1. 确保 CONFIG_COMPAT 已启用
+          if [ -f "arch/arm64/configs/${{ env.DEFCONFIG_NAME }}" ]; then
+            echo "CONFIG_COMPAT=y" >> arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
+            echo "CONFIG_COMPAT_32BIT_TIME=y" >> arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
+          fi
+          
+          # 2. 修复 compat_uptr_t 类型定义
+          cat >> include/linux/types.h << 'EOF'
+          #ifndef compat_uptr_t
+          #ifdef CONFIG_COMPAT
+          typedef u32 compat_uptr_t;
+          #else
+          typedef unsigned long compat_uptr_t;
+          #endif
+          #endif
+          EOF
+          
+          # 3. 修复 filter.h
+          if grep -q "compat_uptr_t" include/linux/filter.h; then
+            sed -i '/^#include <linux\/types.h>/a #ifndef compat_uptr_t\ntypedef u32 compat_uptr_t;\n#endif\n' include/linux/filter.h
+          fi
+          
+          # 4. 修复 millet.h（如果存在）
+          if [ -f "include/linux/millet.h" ]; then
+            sed -i '/^#include <linux\/types.h>/a #ifndef compat_uptr_t\ntypedef u32 compat_uptr_t;\n#endif\n' include/linux/millet.h
+            # 注释掉未使用的变量
+            sed -i 's/static const char \*NAME_ARRAY/__maybe_unused static const char *NAME_ARRAY/' include/linux/millet.h
+          fi
+          
+          # 5. 修复可能缺失的其他头文件
+          echo "compat_uptr_t fix applied"
+
       - name: 🪝 Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
 
@@ -122,9 +156,14 @@ jobs:
 
       - name: 🪛 Extra Kernel Options
         run: |
-          # Only ${{ env.DEVICE_NAME }} use it.
           cd $GITHUB_WORKSPACE/device_kernel
-          # Nothing
+          
+          # 额外配置修复
+          scripts/config --enable CONFIG_COMPAT
+          scripts/config --enable CONFIG_COMPAT_32BIT_TIME
+          scripts/config --disable CONFIG_COMPAT_VDSO
+          
+          echo "Extra kernel options applied"
 
       - name: 🧰 Patch Kernel of Re:Kernel
         uses: ./.github/workflows/patch-rekernel
