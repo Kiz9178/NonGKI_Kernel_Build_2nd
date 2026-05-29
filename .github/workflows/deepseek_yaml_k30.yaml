@@ -1,0 +1,165 @@
+name: Build redmi k30 picasso (MIUI 13 A12)
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  # Device env
+  DEVICE_NAME : "redmi_k30_picasso"
+  DEVICE_CODENAME : "picasso"
+
+  CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu-"
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 CONFIG_COMPAT=y CONFIG_COMPAT_32BIT_TIME=y CONFIG_COMPAT_VDSO=n"
+
+  KERNEL_SOURCE : "https://github.com/Kiz9178/android_kernel_xiaomi_sm7250.git"
+  KERNEL_BRANCH : "16-susfs-miui"
+
+  CLANG_SOURCE : "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-Linux-X64.tar.xz"
+  CLANG_BRANCH : ""
+
+  GCC_GNU : false
+  GCC_64_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
+  GCC_64_BRANCH : "android12L-release"
+  GCC_32_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git"
+  GCC_32_BRANCH : "android12L-release"
+
+  DEFCONFIG_SOURCE: ""
+  DEFCONFIG_NAME : "vendor/xiaomi/picasso.config"
+  DEFCONFIG_ORIGIN_IMAGE: ""
+  DEFCONFIG_FROM_BOOT: false
+
+  KERNELSU_SOURCE : "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/refs/heads/main/kernel/setup.sh"
+  KERNELSU_BRANCH : "v4.1.0"
+
+  KERNELSU_AUTO_GET : "true"
+  KERNELSU_AUTO_FORK : "resukisu"
+
+  SUSFS_ENABLE : true
+  SUSFS_FIXED : true
+  SUSFS_UPDATE : true
+
+  AK3_SOURCE : "https://github.com/osm0sis/AnyKernel3.git"
+  AK3_BRANCH : "master"
+
+  BOOT_SOURCE : ""
+
+  NEED_DTBO : false
+  NEED_SAFE_DTBO : false
+
+  ROM_TEXT : "rom_android"
+
+  # Other env
+  PYTHON_VERSION: "3"
+
+  PACK_METHOD: "Anykernel3"
+  PACK_KMODULES: "false"
+
+  KERNELSU_METHOD: "shell"
+
+  PATCHES_SOURCE: "Kiz9178/NonGKI_Kernel_Build_2nd"
+  PATCHES_BRANCH: "sample"
+
+  SUSFS_FOLDER_FIXED: "Patches/Patch"
+  SUSFS_PATCH_FIXED: "susfs_patch_to_4.19"
+
+  REKERNEL_ENABLE: "false"
+
+  HOOK_METHOD: "syscall"
+  HOOK_OLDER: "false"
+
+  KERNEL_PATCH: "false"
+
+  KPM_ENABLE: "true"
+  KPM_INLINE: "false"
+  KPM_KPATCH_NEXT: "false"
+  KPM_PATCH_SOURCE: "https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.13.0/patch_linux"
+
+  BASEBAND_GUARD_ENABLE: "false"
+  BASEBAND_GUARD_BOOT: "false"
+  HIDE_STUFF: "false"
+
+  GENERATE_DTB: "false"
+  GENERATE_CHIP: "qcom"
+
+  BUILD_DEBUGGER: "false"
+  SKIP_PATCH: "false"
+
+  BUILD_OTHER_CONFIG: "false"
+  MERGE_CONFIG_FILES: "vendor/debugfs.config,vendor/lahaina_QGKI.config"
+
+  FREE_MORE_SPACE: "false"
+
+jobs:
+  build-kernel:
+    name: Build Kernel
+    runs-on: ubuntu-22.04
+    env:
+      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+      CCACHE_NOHASHDIR: "true"
+      CCACHE_HARDLINK: "true"
+
+    steps:
+      - name: ⏰ Checkout repository
+        uses: actions/checkout@v6
+
+      - name: ⌛️ Compilation environment preparation
+        uses: ./.github/workflows/build-env
+
+      - name: ⚙️ Get neccssary tools
+        uses: ./.github/workflows/build-ready
+
+      - name: 🧹 Clean out directory
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+          rm -rf out
+          echo "✅ out directory cleaned"
+
+      - name: 🔧 Fix compat_uptr_t
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+          if ! grep -q "compat_uptr_t" include/linux/types.h; then
+            sed -i '/typedef u32 __kernel_dev_t;/a \
+            \
+            #ifndef compat_uptr_t\
+            #ifdef CONFIG_COMPAT\
+            typedef u32 compat_uptr_t;\
+            #else\
+            typedef unsigned long compat_uptr_t;\
+            #endif\
+            #endif' include/linux/types.h
+          fi
+          echo "✅ compat_uptr_t fix applied"
+
+      - name: 🪝 Patch Kernel of SUSFS
+        uses: ./.github/workflows/patch-susfs
+
+      - name: 🔗 Patch for no-kprobe
+        uses: ./.github/workflows/patch-no-kprobe
+
+      - name: 🪛 Extra Kernel Options
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+          # 禁用 RCU Tasks 避免编译错误
+          echo "# CONFIG_TASKS_RCU is not set" >> arch/arm64/configs/vendor/xiaomi/picasso.config
+          echo "# CONFIG_RCU_TASKS is not set" >> arch/arm64/configs/vendor/xiaomi/picasso.config
+          echo "# CONFIG_RCU_TASKS_RUDE is not set" >> arch/arm64/configs/vendor/xiaomi/picasso.config
+          echo "# CONFIG_RCU_TASKS_TRACE is not set" >> arch/arm64/configs/vendor/xiaomi/picasso.config
+
+      - name: 🧰 Patch Kernel of Re:Kernel
+        uses: ./.github/workflows/patch-rekernel
+
+      - name: 🔒 Patch Kernel of Baseband Guard
+        uses: ./.github/workflows/patch-baseband-guard
+
+      - name: 🔧 Patch Hide Stuff
+        uses: ./.github/workflows/patch-hide-stuff
+
+      - name: 🚀 Build Process
+        uses: ./.github/workflows/build-process
+
+      - name: 🔩 Pack Process
+        uses: ./.github/workflows/pack-process
+
+      - name: ✏️ Upload Artifacts
+        uses: ./.github/workflows/upload-files
