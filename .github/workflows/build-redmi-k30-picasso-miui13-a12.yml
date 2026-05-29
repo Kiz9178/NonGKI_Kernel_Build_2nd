@@ -16,7 +16,7 @@ env:
   KERNEL_SOURCE : "https://github.com/Kiz9178/android_kernel_xiaomi_sm7250.git"
   KERNEL_BRANCH : "16-susfs-miui"
 
-  # 使用 GCC（已配置）
+  # 使用 GCC
   GCC_GNU: true
   GCC_64_SOURCE: "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
   GCC_64_BRANCH: "android12L-release"
@@ -45,7 +45,7 @@ env:
   PACK_METHOD: "Anykernel3"
   KERNELSU_METHOD: "shell"
 
-  # Patch 配置（用于 SUSFS 补丁）
+  # Patch 配置
   PATCHES_SOURCE: "Kiz9178/NonGKI_Kernel_Build_2nd"
   PATCHES_BRANCH: "sample"
   SUSFS_FOLDER_FIXED: "Patches/Patch"
@@ -55,7 +55,7 @@ env:
   HOOK_METHOD: "syscall"
   HOOK_OLDER: "false"
 
-  # KPM 配置（已启用）
+  # KPM 配置
   KPM_ENABLE: "true"
   KPM_INLINE: "false"
   KPM_KPATCH_NEXT: "false"
@@ -65,14 +65,14 @@ env:
   ROM_TEXT : "rom_android"
   PYTHON_VERSION: "3"
 
-  # 调试选项（建议开启以便排查问题）
+  # 调试选项
   BUILD_DEBUGGER: "true"
   SKIP_PATCH: "false"
 
 jobs:
   build-kernel:
     name: Build Redmi K30 Picasso (MIUI 13 A12)
-    runs-on: ubuntu-22.04  # 使用 Ubuntu 22.04 对旧内核更友好
+    runs-on: ubuntu-22.04
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
@@ -87,6 +87,28 @@ jobs:
 
       - name: ⚙️ Get necessary tools
         uses: ./.github/workflows/build-ready
+
+      - name: 🧹 Force clean kernel source
+        run: |
+          echo "========================================="
+          echo "Cleaning kernel source directory..."
+          echo "========================================="
+          cd $GITHUB_WORKSPACE/device_kernel
+          
+          # 删除编译输出目录
+          rm -rf out
+          
+          # 执行深度清理，恢复源码至初始状态
+          make mrproper 2>/dev/null || echo "make mrproper not needed"
+          
+          # 删除所有临时文件和备份文件
+          find . -type f \( -name "*.o" -o -name "*.cmd" -o -name "*.d" -o -name "*.tmp" -o -name "*.swp" -o -name "*~" \) -delete 2>/dev/null || true
+          find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+          
+          # 删除可能残留的 .config 文件
+          rm -f .config .config.old 2>/dev/null || true
+          
+          echo "✅ Kernel source cleaned."
 
       - name: 🔧 Fix compat_uptr_t and header issues
         run: |
@@ -123,9 +145,11 @@ jobs:
           cd $GITHUB_WORKSPACE/device_kernel
           
           # 确保 CONFIG_COMPAT 启用
-          scripts/config --enable CONFIG_COMPAT
-          scripts/config --enable CONFIG_COMPAT_32BIT_TIME
-          scripts/config --disable CONFIG_COMPAT_VDSO
+          if [ -f "scripts/config" ]; then
+            scripts/config --enable CONFIG_COMPAT
+            scripts/config --enable CONFIG_COMPAT_32BIT_TIME
+            scripts/config --disable CONFIG_COMPAT_VDSO
+          fi
           
           # 写入 defconfig
           echo "CONFIG_COMPAT=y" >> arch/arm64/configs/vendor/xiaomi/picasso.config
@@ -145,9 +169,11 @@ jobs:
           cd $GITHUB_WORKSPACE/device_kernel
           
           # 额外配置
-          scripts/config --enable CONFIG_KPROBES
-          scripts/config --enable CONFIG_HAVE_KPROBES
-          scripts/config --enable CONFIG_KPROBE_EVENTS
+          if [ -f "scripts/config" ]; then
+            scripts/config --enable CONFIG_KPROBES
+            scripts/config --enable CONFIG_HAVE_KPROBES
+            scripts/config --enable CONFIG_KPROBE_EVENTS
+          fi
           
           echo "✅ Extra kernel options applied"
 
