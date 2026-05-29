@@ -1,4 +1,4 @@
-name: Build REDMI K30 picasso (MIUI 13 A12)
+name: Build redmi k30 picasso (MIUI 13 A12)
 
 on:
   workflow_call:
@@ -6,29 +6,33 @@ on:
 
 env:
   # Device env
-  DEVICE_NAME : "xiaomi_redmi_k30_picasso"
+  DEVICE_NAME : "redmi_k30_picasso"
   DEVICE_CODENAME : "picasso"
 
   CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu-"
-  EXTRA_CMDS : "CONFIG_COMPAT=y CONFIG_COMPAT_32BIT_TIME=y"
+  # 修复1：添加 CONFIG_COMPAT 支持，禁用 VDSO32
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 CONFIG_COMPAT=y CONFIG_COMPAT_32BIT_TIME=y CONFIG_COMPAT_VDSO=n"
 
   KERNEL_SOURCE : "https://github.com/Kiz9178/android_kernel_xiaomi_sm7250.git"
   KERNEL_BRANCH : "16-susfs-miui"
 
-  # 使用 GCC
-  GCC_GNU: true
+  CLANG_SOURCE : "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-Linux-X64.tar.xz"
+  CLANG_BRANCH : ""
+
+  GCC_GNU : false
   GCC_64_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
   GCC_64_BRANCH : "android12L-release"
   GCC_32_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git"
   GCC_32_BRANCH : "android12L-release"
 
-  CLANG_SOURCE: ""
-  CLANG_BRANCH: ""
-
+  DEFCONFIG_SOURCE: ""
   DEFCONFIG_NAME : "vendor/xiaomi/picasso.config"
+  DEFCONFIG_ORIGIN_IMAGE: ""
+  DEFCONFIG_FROM_BOOT: false
 
   KERNELSU_SOURCE : "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/refs/heads/main/kernel/setup.sh"
   KERNELSU_BRANCH : "v4.1.0"
+
   KERNELSU_AUTO_GET : "true"
   KERNELSU_AUTO_FORK : "resukisu"
 
@@ -39,8 +43,11 @@ env:
   AK3_SOURCE : "https://github.com/osm0sis/AnyKernel3.git"
   AK3_BRANCH : "master"
 
+  BOOT_SOURCE : ""
+
   NEED_DTBO : false
   NEED_SAFE_DTBO : false
+
   ROM_TEXT : "rom_android"
 
   PYTHON_VERSION: "3"
@@ -58,25 +65,27 @@ env:
   HOOK_OLDER: "false"
   KERNEL_PATCH: "false"
 
-  KPM_ENABLE: "true"
-  KPM_INLINE: "false"
-  KPM_KPATCH_NEXT: "false"
+  # 修复2：修正 KPM_ENABLE 的引号位置
+  KPM_ENABLE: "true"  # Anyone devices.
+  KPM_INLINE: "false"  # Only use it for SukiSU-Ultra.
+  KPM_KPATCH_NEXT: "false"  # If u want hook KPatch-Next in build step.
   KPM_PATCH_SOURCE: "https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.13.0/patch_linux"
 
   BASEBAND_GUARD_ENABLE: "false"
   BASEBAND_GUARD_BOOT: "false"
+  HIDE_STUFF: "false"
   GENERATE_DTB: "false"
   GENERATE_CHIP: "qcom"
 
-  BUILD_DEBUGGER: "true"
+  BUILD_DEBUGGER: "false"
   SKIP_PATCH: "false"
   BUILD_OTHER_CONFIG: "false"
   FREE_MORE_SPACE: "false"
 
 jobs:
   build-kernel:
-    name: Build Redmi K30 Picasso (MIUI 13 A12)
-    runs-on: ubuntu-22.04
+    name: redmi K30 picasso (MIUI 13 A12)
+    runs-on: ubuntu-22.04  # 修复3：使用 ubuntu-22.04 而非 latest
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
@@ -92,80 +101,20 @@ jobs:
       - name: ⚙️ Get neccssary tools
         uses: ./.github/workflows/build-ready
 
-      # ============================================================
-      # 核心修复：在打补丁和编译前，彻底清理内核源码根目录
-      # ============================================================
-      - name: 🧹 ULTIMATE CLEAN (Fix mrproper error)
+      # 修复4：添加清理步骤，解决 "not clean" 错误
+      - name: 🧹 Clean out directory
         run: |
-          echo "============================================="
-          echo "Starting ULTIMATE CLEAN on kernel source root"
-          echo "============================================="
-          
           cd $GITHUB_WORKSPACE/device_kernel
-          echo "Current directory: $(pwd)"
-          
-          # 1. 删除整个 out 编译目录
           rm -rf out
-          
-          # 2. 删除所有编译生成的文件和配置
-          rm -f .config .config.old .version Module.symvers System-map
-          
-          # 3. 删除所有 .o .ko .cmd .mod 等中间文件
-          find . -type f \( -name "*.o" -o -name "*.ko" -o -name "*.cmd" -o -name "*.mod.c" -o -name "*.mod" \) -delete 2>/dev/null || true
-          
-          # 4. 删除所有临时文件
-          find . -type f -name ".*.cmd" -delete 2>/dev/null || true
-          find . -type f -name "*.tmp" -delete 2>/dev/null || true
-          find . -type f -name "*.swp" -delete 2>/dev/null || true
-          
-          # 5. 删除自动生成的头文件目录
-          rm -rf include/generated
-          rm -rf include/config
-          
-          # 注意：不要删除 scripts/basic，只需清理其内容
-          # 确保 scripts/basic 目录存在但干净
-          mkdir -p scripts/basic
-          find scripts/basic -type f -not -name "Makefile" -delete 2>/dev/null || true
-          
-          echo "============================================="
-          echo "✅ ULTIMATE CLEAN completed"
-          echo "============================================="
+          echo "✅ out directory cleaned"
 
-      # ============================================================
-      # 新增：重新生成 scripts/basic 文件
-      # ============================================================
-      - name: 🔧 Regenerate scripts_basic
-        run: |
-          echo "============================================="
-          echo "Regenerating scripts_basic"
-          echo "============================================="
-          
-          cd $GITHUB_WORKSPACE/device_kernel
-          
-          # 创建 out 目录
-          mkdir -p out
-          
-          # 执行 scripts_basic 目标
-          make O=out scripts_basic
-          
-          # 检查是否生成成功
-          if [ -f "out/scripts/basic/Makefile" ]; then
-            echo "✅ scripts_basic regenerated successfully"
-          else
-            echo "⚠️ scripts_basic may need manual fix"
-          fi
-          
-          echo "============================================="
-
-      - name: 🔧 Fix compat_uptr_t and header issues
+      # 修复5：添加 compat_uptr_t 类型定义
+      - name: 🔧 Fix compat_uptr_t
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
-          
-          # 修复 types.h - 添加 compat_uptr_t 定义
           if ! grep -q "compat_uptr_t" include/linux/types.h; then
             sed -i '/typedef u32 __kernel_dev_t;/a \
             \
-            /* Fix for compat_uptr_t missing */\
             #ifndef compat_uptr_t\
             #ifdef CONFIG_COMPAT\
             typedef u32 compat_uptr_t;\
@@ -174,36 +123,7 @@ jobs:
             #endif\
             #endif' include/linux/types.h
           fi
-          
-          # 修复 filter.h
-          if grep -q "compat_uptr_t" include/linux/filter.h; then
-            sed -i '1i #ifndef compat_uptr_t\ntypedef u32 compat_uptr_t;\n#endif\n' include/linux/filter.h
-          fi
-          
-          # 修复 millet.h（如果存在）
-          if [ -f "include/linux/millet.h" ]; then
-            sed -i 's/static const char \*NAME_ARRAY/static const char *NAME_ARRAY __maybe_unused/' include/linux/millet.h
-          fi
-          
           echo "✅ compat_uptr_t fix applied"
-
-      - name: 🔧 Fix VDSO32 and config
-        run: |
-          cd $GITHUB_WORKSPACE/device_kernel
-          
-          # 确保 CONFIG_COMPAT 启用
-          if [ -f "scripts/config" ]; then
-            scripts/config --enable CONFIG_COMPAT
-            scripts/config --enable CONFIG_COMPAT_32BIT_TIME
-            scripts/config --disable CONFIG_COMPAT_VDSO
-          fi
-          
-          # 写入 defconfig
-          echo "CONFIG_COMPAT=y" >> arch/arm64/configs/vendor/xiaomi/picasso.config
-          echo "CONFIG_COMPAT_32BIT_TIME=y" >> arch/arm64/configs/vendor/xiaomi/picasso.config
-          echo "# CONFIG_COMPAT_VDSO is not set" >> arch/arm64/configs/vendor/xiaomi/picasso.config
-          
-          echo "✅ VDSO32 disabled and COMPAT enabled"
 
       - name: 🪝 Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
@@ -214,10 +134,10 @@ jobs:
       - name: 🪛 Extra Kernel Options
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
-          if [ -f "scripts/config" ]; then
-            scripts/config --enable CONFIG_KPROBES
-            scripts/config --enable CONFIG_HAVE_KPROBES
-          fi
+          # 确保配置写入 defconfig
+          echo "CONFIG_COMPAT=y" >> arch/arm64/configs/vendor/xiaomi/picasso.config
+          echo "CONFIG_COMPAT_32BIT_TIME=y" >> arch/arm64/configs/vendor/xiaomi/picasso.config
+          echo "# CONFIG_COMPAT_VDSO is not set" >> arch/arm64/configs/vendor/xiaomi/picasso.config
 
       - name: 🧰 Patch Kernel of Re:Kernel
         uses: ./.github/workflows/patch-rekernel
