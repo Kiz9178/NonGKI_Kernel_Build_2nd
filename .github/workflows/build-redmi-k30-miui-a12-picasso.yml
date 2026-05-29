@@ -1,4 +1,4 @@
-name: Build Redmi K35 (picasso) (MIUI A12)
+name: Build RedMi K30 picasso (MIUI 13 A12)
 
 on:
   workflow_call:
