@@ -15,14 +15,13 @@ env:
   KERNEL_SOURCE : "https://github.com/Kiz9178/android_kernel_xiaomi_sm7250.git"
   KERNEL_BRANCH : "16-susfs-miui"
 
-  # 使用 GCC（对旧内核更友好）
+  # 使用 GCC
   GCC_GNU: true
   GCC_64_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
   GCC_64_BRANCH : "android12L-release"
   GCC_32_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git"
   GCC_32_BRANCH : "android12L-release"
 
-  # 清空 Clang 相关
   CLANG_SOURCE: ""
   CLANG_BRANCH: ""
 
@@ -102,7 +101,6 @@ jobs:
           echo "Starting ULTIMATE CLEAN on kernel source root"
           echo "============================================="
           
-          # 关键：确保在源码根目录操作
           cd $GITHUB_WORKSPACE/device_kernel
           echo "Current directory: $(pwd)"
           
@@ -110,7 +108,7 @@ jobs:
           rm -rf out
           
           # 2. 删除所有编译生成的文件和配置
-          rm -f .config .config.old .version Module.symvers System.map
+          rm -f .config .config.old .version Module.symvers System-map
           
           # 3. 删除所有 .o .ko .cmd .mod 等中间文件
           find . -type f \( -name "*.o" -o -name "*.ko" -o -name "*.cmd" -o -name "*.mod.c" -o -name "*.mod" \) -delete 2>/dev/null || true
@@ -124,16 +122,39 @@ jobs:
           rm -rf include/generated
           rm -rf include/config
           
-          # 6. 删除 scripts 编译产物
-          rm -rf scripts/basic
-          rm -rf scripts/dtc
-          
-          # 7. 最后，在根目录执行一次 make mrproper（确保环境干净）
-          make mrproper 2>/dev/null || echo "make mrproper not critical"
+          # 注意：不要删除 scripts/basic，只需清理其内容
+          # 确保 scripts/basic 目录存在但干净
+          mkdir -p scripts/basic
+          find scripts/basic -type f -not -name "Makefile" -delete 2>/dev/null || true
           
           echo "============================================="
           echo "✅ ULTIMATE CLEAN completed"
-          ls -la
+          echo "============================================="
+
+      # ============================================================
+      # 新增：重新生成 scripts/basic 文件
+      # ============================================================
+      - name: 🔧 Regenerate scripts_basic
+        run: |
+          echo "============================================="
+          echo "Regenerating scripts_basic"
+          echo "============================================="
+          
+          cd $GITHUB_WORKSPACE/device_kernel
+          
+          # 创建 out 目录
+          mkdir -p out
+          
+          # 执行 scripts_basic 目标
+          make O=out scripts_basic
+          
+          # 检查是否生成成功
+          if [ -f "out/scripts/basic/Makefile" ]; then
+            echo "✅ scripts_basic regenerated successfully"
+          else
+            echo "⚠️ scripts_basic may need manual fix"
+          fi
+          
           echo "============================================="
 
       - name: 🔧 Fix compat_uptr_t and header issues
@@ -193,7 +214,6 @@ jobs:
       - name: 🪛 Extra Kernel Options
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
-          # 确保配置生效
           if [ -f "scripts/config" ]; then
             scripts/config --enable CONFIG_KPROBES
             scripts/config --enable CONFIG_HAVE_KPROBES
