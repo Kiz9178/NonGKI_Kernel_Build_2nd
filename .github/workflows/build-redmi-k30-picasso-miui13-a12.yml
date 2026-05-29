@@ -9,20 +9,23 @@ env:
   DEVICE_NAME : "redmi_k30_picasso"
   DEVICE_CODENAME : "picasso"
 
-  CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu-"
   EXTRA_CMDS: "LD=ld.lld LLVM=1 LLVM_IAS=1 CONFIG_COMPAT_VDSO=n"
+  CUSTOM_CMDS: "CLANG_TRIPLE=aarch64-linux-gnu- CONFIG_COMPAT_VDSO=n"
 
   KERNEL_SOURCE : "https://github.com/Kiz9178/android_kernel_xiaomi_sm7250.git"
   KERNEL_BRANCH : "16-susfs-miui"
 
-  CLANG_SOURCE: "https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz"
+  CLANG_SOURCE: ""
   CLANG_BRANCH : ""
 
-  GCC_GNU : false
-  GCC_64_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
-  GCC_64_BRANCH : "android12L-release"
-  GCC_32_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git"
-  GCC_32_BRANCH : "android12L-release"
+  
+  # 启用 GCC
+  GCC_GNU: true
+  GCC_64_SOURCE: "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
+  GCC_64_BRANCH: "android12L-release"
+  GCC_32_SOURCE: "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git"
+  GCC_32_BRANCH: "android12L-release"
+  
 
   DEFCONFIG_SOURCE: ""
   DEFCONFIG_NAME : "vendor/xiaomi/picasso.config"
