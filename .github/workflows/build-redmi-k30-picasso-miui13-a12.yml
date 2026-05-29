@@ -9,65 +9,70 @@ env:
   DEVICE_NAME : "xiaomi_redmi_k30_picasso"
   DEVICE_CODENAME : "picasso"
 
-  # 使用 GCC 编译（对旧内核更友好）
   CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu-"
   EXTRA_CMDS : "CONFIG_COMPAT=y CONFIG_COMPAT_32BIT_TIME=y"
 
   KERNEL_SOURCE : "https://github.com/Kiz9178/android_kernel_xiaomi_sm7250.git"
   KERNEL_BRANCH : "16-susfs-miui"
 
-  # 使用 GCC
+  # 使用 GCC（对旧内核更友好）
   GCC_GNU: true
-  GCC_64_SOURCE: "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
-  GCC_64_BRANCH: "android12L-release"
-  GCC_32_SOURCE: "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git"
-  GCC_32_BRANCH: "android12L-release"
+  GCC_64_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
+  GCC_64_BRANCH : "android12L-release"
+  GCC_32_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git"
+  GCC_32_BRANCH : "android12L-release"
 
-  # Defconfig 配置
+  # 清空 Clang 相关
+  CLANG_SOURCE: ""
+  CLANG_BRANCH: ""
+
   DEFCONFIG_NAME : "vendor/xiaomi/picasso.config"
 
-  # KernelSU 配置
   KERNELSU_SOURCE : "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/refs/heads/main/kernel/setup.sh"
   KERNELSU_BRANCH : "v4.1.0"
   KERNELSU_AUTO_GET : "true"
   KERNELSU_AUTO_FORK : "resukisu"
 
-  # SUSFS 配置
   SUSFS_ENABLE : true
   SUSFS_FIXED : true
   SUSFS_UPDATE : true
 
-  # AnyKernel3 配置
   AK3_SOURCE : "https://github.com/osm0sis/AnyKernel3.git"
   AK3_BRANCH : "master"
 
-  # 打包方式
+  NEED_DTBO : false
+  NEED_SAFE_DTBO : false
+  ROM_TEXT : "rom_android"
+
+  PYTHON_VERSION: "3"
   PACK_METHOD: "Anykernel3"
+  PACK_KMODULES: "false"
   KERNELSU_METHOD: "shell"
 
-  # Patch 配置
   PATCHES_SOURCE: "Kiz9178/NonGKI_Kernel_Build_2nd"
   PATCHES_BRANCH: "sample"
   SUSFS_FOLDER_FIXED: "Patches/Patch"
   SUSFS_PATCH_FIXED: "susfs_patch_to_4.19"
 
-  # Hook 方法
+  REKERNEL_ENABLE: "false"
   HOOK_METHOD: "syscall"
   HOOK_OLDER: "false"
+  KERNEL_PATCH: "false"
 
-  # KPM 配置
   KPM_ENABLE: "true"
   KPM_INLINE: "false"
   KPM_KPATCH_NEXT: "false"
   KPM_PATCH_SOURCE: "https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.13.0/patch_linux"
 
-  # 其他选项
-  ROM_TEXT : "rom_android"
-  PYTHON_VERSION: "3"
+  BASEBAND_GUARD_ENABLE: "false"
+  BASEBAND_GUARD_BOOT: "false"
+  GENERATE_DTB: "false"
+  GENERATE_CHIP: "qcom"
 
-  # 调试选项
   BUILD_DEBUGGER: "true"
   SKIP_PATCH: "false"
+  BUILD_OTHER_CONFIG: "false"
+  FREE_MORE_SPACE: "false"
 
 jobs:
   build-kernel:
@@ -80,52 +85,56 @@ jobs:
 
     steps:
       - name: ⏰ Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: ⌛️ Compilation environment preparation
         uses: ./.github/workflows/build-env
 
-      - name: ⚙️ Get necessary tools
+      - name: ⚙️ Get neccssary tools
         uses: ./.github/workflows/build-ready
 
-      - name: 🧹 Force clean kernel source (Fix mrproper)
+      # ============================================================
+      # 核心修复：在打补丁和编译前，彻底清理内核源码根目录
+      # ============================================================
+      - name: 🧹 ULTIMATE CLEAN (Fix mrproper error)
         run: |
-          echo "========================================="
-          echo "Cleaning kernel source directory..."
-          echo "========================================="
+          echo "============================================="
+          echo "Starting ULTIMATE CLEAN on kernel source root"
+          echo "============================================="
           
-          # 进入内核源码根目录（不是 out 目录）
+          # 关键：确保在源码根目录操作
           cd $GITHUB_WORKSPACE/device_kernel
-          
           echo "Current directory: $(pwd)"
-          echo "Files before clean:"
-          ls -la
           
-          # 删除编译输出目录
+          # 1. 删除整个 out 编译目录
           rm -rf out
           
-          # 删除所有可能残留的编译文件
-          rm -f .config .config.old .version
-          rm -f Module.symvers System.map
+          # 2. 删除所有编译生成的文件和配置
+          rm -f .config .config.old .version Module.symvers System.map
           
-          # 删除所有 .o .ko .cmd 文件
-          find . -type f \( -name "*.o" -o -name "*.ko" -o -name "*.cmd" -o -name "*.mod.c" \) -delete 2>/dev/null || true
+          # 3. 删除所有 .o .ko .cmd .mod 等中间文件
+          find . -type f \( -name "*.o" -o -name "*.ko" -o -name "*.cmd" -o -name "*.mod.c" -o -name "*.mod" \) -delete 2>/dev/null || true
           
-          # 删除所有临时文件
+          # 4. 删除所有临时文件
           find . -type f -name ".*.cmd" -delete 2>/dev/null || true
           find . -type f -name "*.tmp" -delete 2>/dev/null || true
+          find . -type f -name "*.swp" -delete 2>/dev/null || true
           
-          # 删除 include/generated 目录
-          rm -rf include/generated 2>/dev/null || true
+          # 5. 删除自动生成的头文件目录
+          rm -rf include/generated
+          rm -rf include/config
           
-          # 删除 scripts/basic 目录
-          rm -rf scripts/basic 2>/dev/null || true
+          # 6. 删除 scripts 编译产物
+          rm -rf scripts/basic
+          rm -rf scripts/dtc
           
-          echo "========================================="
-          echo "✅ Kernel source cleaned."
-          echo "Files after clean:"
+          # 7. 最后，在根目录执行一次 make mrproper（确保环境干净）
+          make mrproper 2>/dev/null || echo "make mrproper not critical"
+          
+          echo "============================================="
+          echo "✅ ULTIMATE CLEAN completed"
           ls -la
-          echo "========================================="
+          echo "============================================="
 
       - name: 🔧 Fix compat_uptr_t and header issues
         run: |
@@ -184,15 +193,11 @@ jobs:
       - name: 🪛 Extra Kernel Options
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
-          
-          # 额外配置
+          # 确保配置生效
           if [ -f "scripts/config" ]; then
             scripts/config --enable CONFIG_KPROBES
             scripts/config --enable CONFIG_HAVE_KPROBES
-            scripts/config --enable CONFIG_KPROBE_EVENTS
           fi
-          
-          echo "✅ Extra kernel options applied"
 
       - name: 🧰 Patch Kernel of Re:Kernel
         uses: ./.github/workflows/patch-rekernel
