@@ -93,7 +93,7 @@ env:
 
 jobs:
   build-kernel:
-    name: redmi K30 picasso (MIUI 13 A12)
+    name: redmi K30 5g picasso (MIUI 13 A12)
     runs-on: ubuntu-latest # u can changed to ubuntu 22.04, and need container set ubuntu-latest
     # container: archlinux/archlinux:latest # if u need use arch linux -> archlinux/archlinux:latest or ubuntu 20.04 -> ubuntu:focal
     env:
