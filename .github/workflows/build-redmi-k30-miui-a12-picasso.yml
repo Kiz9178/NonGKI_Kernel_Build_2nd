@@ -1,4 +1,4 @@
-name: Build redmi k30 picasso 1 (MIUI 13 A12)
+name: Build redmi k30 5g picasso  (MIUI 13 A12)
 
 on:
   workflow_call:
@@ -70,7 +70,7 @@ env:
 
   KERNEL_PATCH: "false" # If your kernel version is <= 4.9, you have the option of enabling the patch to patch the kernel_write and kernel_read functions.
 
-  KPM_ENABLE: "true # Anyone devices.
+  KPM_ENABLE: "true" # Anyone devices.
   KPM_INLINE: "false" # Only use it for SukiSU-Ultra.
   KPM_KPATCH_NEXT: "false" # If u want hook KPatch-Next in build step.
   KPM_PATCH_SOURCE: "https://github.com/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/download/0.13.0/patch_linux" # If u want to use KPM Inline,so you need set patch exec file source -> raw.githubusercontent.com/Test/Test/patch .
