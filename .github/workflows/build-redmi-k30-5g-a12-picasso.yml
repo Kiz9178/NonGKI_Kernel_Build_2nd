@@ -10,7 +10,7 @@ env:
   DEVICE_CODENAME : "picasso"
 
   CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu-"
-  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1"
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=0"
 
   KERNEL_SOURCE : "https://github.com/Kiz9178/android_kernel_xiaomi_sm7250.git"
   KERNEL_BRANCH : "16-susfs-miui"
@@ -24,7 +24,6 @@ env:
   GCC_32_SOURCE : "https://github.com/JackA1ltman/Google-GCC-Android-4.9.git"
   GCC_32_BRANCH : "arm32"
 
-  DEFCONFIG_SOURCE: ""
   DEFCONFIG_NAME : "vendor/picasso_defconfig"
   DEFCONFIG_ORIGIN_IMAGE: ""
   DEFCONFIG_FROM_BOOT: false
